@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { CallProvider } from "@/hooks/useCall";
 import DashboardLayout from "@/components/layout/DashboardLayout";
@@ -6,7 +6,7 @@ import DashboardHome from "@/components/dashboard/DashboardHome";
 import AIRadiologist from "@/components/modules/AIRadiologist";
 import SmartMedicalAdvisor from "@/components/modules/SmartMedicalAdvisor";
 import DoctorsListing from "@/components/modules/DoctorsListing";
-import HealthCompanion from "@/components/modules/HealthCompanion";
+const HealthCompanion = lazy(() => import("@/components/modules/HealthCompanion"));
 import PatientsManager from "@/components/modules/PatientsManager";
 import AdminPanel from "@/components/modules/AdminPanel";
 import ChatModule from "@/components/modules/ChatModule";
@@ -88,7 +88,7 @@ const AppContent = () => {
       case "dashboard": return <DashboardHome onNavigate={setActiveTab} />;
       case "radiologist": return <AIRadiologist />;
       case "advisor": return <SmartMedicalAdvisor />;
-      case "rehab": return <HealthCompanion />;
+      case "rehab": return <Suspense fallback={<div className="flex justify-center p-12"><Loader2 className="animate-spin text-primary" size={32} /></div>}><HealthCompanion /></Suspense>;
       case "patients": return <PatientsManager />;
       case "admin": return <AdminPanel />;
       case "chat": return <ChatModule />;
