@@ -289,11 +289,61 @@ const AppointmentsModule = () => {
   };
 
   const loadDoctors = async () => {
-    const { data } = await supabase
+    // First try profiles.role = 'doctor' (fast path)
+    const { data: profileDoctors, error: profileError } = await supabase
       .from("profiles")
       .select("user_id, full_name, specialty, avatar_url")
-      .eq("role", "doctor");
-    setDoctors((data as DoctorProfile[]) || []);
+      .eq("role", "doctor")
+      .eq("is_blocked", false);
+
+    if (profileError) {
+      console.error("loadDoctors profiles error:", profileError);
+    }
+
+    let doctors = (profileDoctors as DoctorProfile[]) || [];
+
+    // If no doctors found via profiles.role, fallback to user_roles table
+    if (doctors.length === 0) {
+      console.warn("No doctors via profiles.role, trying user_roles fallback...");
+      const { data: doctorRoles, error: rolesError } = await supabase
+        .from("user_roles" as any)
+        .select("user_id")
+        .eq("role", "doctor");
+
+      if (rolesError) {
+        console.error("loadDoctors user_roles error:", rolesError);
+      }
+
+      const doctorIds = ((doctorRoles as any[]) || []).map((r: any) => r.user_id);
+      if (doctorIds.length > 0) {
+        // Filter out admin users
+        const { data: adminRoles } = await supabase.rpc("get_admin_user_ids" as any);
+        const adminIds = new Set(((adminRoles as any[]) || []).map((r: any) => r.user_id));
+        const nonAdminIds = doctorIds.filter(id => !adminIds.has(id));
+
+        if (nonAdminIds.length > 0) {
+          const { data: fallbackProfiles, error: fbError } = await supabase
+            .from("profiles")
+            .select("user_id, full_name, specialty, avatar_url")
+            .in("user_id", nonAdminIds)
+            .eq("is_blocked", false);
+
+          if (fbError) {
+            console.error("loadDoctors fallback profiles error:", fbError);
+          }
+
+          doctors = (fallbackProfiles as DoctorProfile[]) || [];
+        }
+      }
+    } else {
+      // Filter out admin users from profile-based results
+      const { data: adminRoles } = await supabase.rpc("get_admin_user_ids" as any);
+      const adminIds = new Set(((adminRoles as any[]) || []).map((r: any) => r.user_id));
+      doctors = doctors.filter(d => !adminIds.has(d.user_id));
+    }
+
+    console.log("loadDoctors result:", doctors.length, "doctors found");
+    setDoctors(doctors);
   };
 
   useEffect(() => {
