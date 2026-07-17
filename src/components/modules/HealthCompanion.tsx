@@ -5,23 +5,53 @@ import CompanionAvatar3D from "@/components/companion/CompanionAvatar3D";
 import CompanionAlarmPanel from "@/components/companion/CompanionAlarmPanel";
 import CompanionDietPanel from "@/components/companion/CompanionDietPanel";
 import CompanionFitnessPanel from "@/components/companion/CompanionFitnessPanel";
-import { useCompanionSpeech, type CharacterType } from "@/components/companion/useCompanionSpeech";
+import { useCompanionStore } from "@/stores/useCompanionStore";
 import { useHealthSchedule } from "@/components/companion/useHealthSchedule";
+
 type TabType = "alarm" | "diet" | "fitness";
 
-const CHAR_STORAGE = "medi_companion_character_v1";
-
 const HealthCompanion = () => {
-  const [character, setCharacter] = useState<CharacterType>(() => {
-    try {
-      const s = localStorage.getItem(CHAR_STORAGE);
-      if (s === "boy" || s === "girl") return s;
-    } catch { /* ignore */ }
-    return "boy";
-  });
+  const {
+    character,
+    setCharacter,
+    mood,
+    setMood,
+    isSpeaking,
+    speechText,
+  } = useCompanionStore();
+
   const [activeTab, setActiveTab] = useState<TabType>("alarm");
 
-  const { speechText, isSpeaking, mood, setMood, speak } = useCompanionSpeech(character);
+  /* speech helper that writes to the store */
+  const speak = useCallback(
+    (text: string, nextMood?: typeof mood) => {
+      useCompanionStore.getState().speak(text, nextMood || "idle");
+
+      /* use Web Speech API for actual audio */
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = "uz-UZ";
+        utterance.pitch = character === "boy" ? 1.15 : 1.35;
+        utterance.rate = character === "boy" ? 1.05 : 1.0;
+        const voices = window.speechSynthesis.getVoices();
+        const voice = voices.find(
+          (v) => v.lang.startsWith("uz") || v.lang.startsWith("tr") || v.lang.startsWith("ru")
+        );
+        if (voice) utterance.voice = voice;
+        utterance.onend = () => {
+          useCompanionStore.getState().stopSpeaking();
+          setTimeout(() => useCompanionStore.getState().setSpeechText(""), 2500);
+        };
+        utterance.onerror = () => {
+          useCompanionStore.getState().stopSpeaking();
+          setTimeout(() => useCompanionStore.getState().setSpeechText(""), 4000);
+        };
+        window.speechSynthesis.speak(utterance);
+      }
+    },
+    [character]
+  );
 
   const onReminder = useCallback(
     (msg: string) => speak(msg, "happy"),
@@ -30,9 +60,8 @@ const HealthCompanion = () => {
 
   const { schedule, update, toggleActive } = useHealthSchedule(onReminder);
 
-  const selectCharacter = (c: CharacterType) => {
+  const selectCharacter = (c: "boy" | "girl") => {
     setCharacter(c);
-    localStorage.setItem(CHAR_STORAGE, c);
   };
 
   useEffect(() => {
@@ -79,7 +108,7 @@ const HealthCompanion = () => {
             <CompanionAvatar3D
               character={character}
               isSpeaking={isSpeaking}
-              mood={mood}
+              mood={mood === "eating" || mood === "talking" ? "idle" : mood as "idle" | "happy" | "exercise" | "sleep"}
               speechText={speechText}
             />
 
@@ -158,3 +187,4 @@ const HealthCompanion = () => {
 };
 
 export default HealthCompanion;
+

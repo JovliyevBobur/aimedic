@@ -1,89 +1,14 @@
-import { Suspense, useRef, useMemo } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useState } from "react";
+import { Canvas } from "@react-three/fiber";
 import { ContactShadows, Environment, Float } from "@react-three/drei";
-import * as THREE from "three";
-import type { CharacterType } from "./useCompanionSpeech";
+import Character3D from "@/components/3d/Character3D";
+import type { CharacterType } from "@/stores/useCompanionStore";
 
-interface CharacterMeshProps {
+interface CompanionAvatar3DProps {
   character: CharacterType;
   isSpeaking: boolean;
   mood: "idle" | "happy" | "exercise" | "sleep";
-}
-
-function CharacterMesh({ character, isSpeaking, mood }: CharacterMeshProps) {
-  const groupRef = useRef<THREE.Group>(null);
-  const leftArmRef = useRef<THREE.Mesh>(null);
-  const rightArmRef = useRef<THREE.Mesh>(null);
-  const headRef = useRef<THREE.Group>(null);
-
-  const texture = useMemo(() => {
-    const tex = new THREE.TextureLoader().load("/companion/characters.png");
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.repeat.set(0.5, 1);
-    tex.offset.set(character === "boy" ? 0 : 0.5, 0);
-    return tex;
-  }, [character]);
-
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime();
-    const g = groupRef.current;
-    if (!g) return;
-
-    const breathe = 1 + Math.sin(t * 2) * 0.012;
-    g.scale.set(1, breathe, 1);
-
-    if (mood === "exercise") {
-      g.position.y = Math.abs(Math.sin(t * 6)) * 0.08;
-      g.rotation.y = Math.sin(t * 3) * 0.15;
-    } else if (mood === "sleep") {
-      g.rotation.z = Math.sin(t * 0.5) * 0.02;
-      g.position.y = Math.sin(t) * 0.01;
-    } else {
-      g.rotation.y = Math.sin(t * 0.6) * 0.08;
-      g.position.y = Math.sin(t * 1.2) * 0.02;
-    }
-
-    if (headRef.current) {
-      headRef.current.rotation.x = isSpeaking ? Math.sin(t * 12) * 0.04 : Math.sin(t * 0.8) * 0.02;
-      headRef.current.rotation.z = isSpeaking ? Math.sin(t * 8) * 0.03 : 0;
-    }
-
-    const armSwing = isSpeaking ? Math.sin(t * 5) * 0.5 : mood === "exercise" ? Math.sin(t * 4) * 1.2 : Math.sin(t * 1.5) * 0.15;
-    if (leftArmRef.current) leftArmRef.current.rotation.x = armSwing;
-    if (rightArmRef.current) rightArmRef.current.rotation.x = -armSwing;
-  });
-
-  const skinColor = character === "boy" ? "#f5d0b5" : "#f8d4c4";
-
-  return (
-    <group ref={groupRef} position={[0, 0.1, 0]}>
-      {/* Body — textured character */}
-      <mesh position={[0, 0.85, 0]}>
-        <planeGeometry args={[1.35, 2.2, 32, 32]} />
-        <meshStandardMaterial map={texture} transparent alphaTest={0.05} side={THREE.DoubleSide} roughness={0.6} />
-      </mesh>
-
-      {/* Head group for subtle nod */}
-      <group ref={headRef} position={[0, 1.65, 0.05]}>
-        {isSpeaking && (
-          <mesh position={[0, -0.05, 0.06]}>
-            <sphereGeometry args={[0.06, 16, 16]} />
-            <meshStandardMaterial color="#ff6b8a" emissive="#ff3366" emissiveIntensity={isSpeaking ? 0.8 : 0} transparent opacity={0.7} />
-          </mesh>
-        )}
-      </group>
-
-      {/* Animated arms */}
-      <mesh ref={leftArmRef} position={[-0.72, 1.1, 0.08]} rotation={[0, 0, 0.3]}>
-        <capsuleGeometry args={[0.07, 0.45, 8, 16]} />
-        <meshStandardMaterial color={skinColor} roughness={0.5} />
-      </mesh>
-      <mesh ref={rightArmRef} position={[0.72, 1.1, 0.08]} rotation={[0, 0, -0.3]}>
-        <capsuleGeometry args={[0.07, 0.45, 8, 16]} />
-        <meshStandardMaterial color={skinColor} roughness={0.5} />
-      </mesh>
-    </group>
-  );
+  speechText?: string;
 }
 
 function Pedestal() {
@@ -105,7 +30,7 @@ function Pedestal() {
   );
 }
 
-function Scene({ character, isSpeaking, mood }: CharacterMeshProps) {
+function Scene({ character, isSpeaking, mood }: CompanionAvatar3DProps) {
   return (
     <>
       <ambientLight intensity={0.55} />
@@ -113,19 +38,18 @@ function Scene({ character, isSpeaking, mood }: CharacterMeshProps) {
       <spotLight position={[-3, 4, 2]} angle={0.4} penumbra={1} intensity={0.5} color="#aaccff" />
       <Environment preset="city" />
       <Float speed={1.2} rotationIntensity={0.08} floatIntensity={0.15}>
-        <CharacterMesh character={character} isSpeaking={isSpeaking} mood={mood} />
+        <Character3D 
+          character={character} 
+          mood={mood} 
+          isSpeaking={isSpeaking} 
+          lookTarget={{ x: 0, y: 0 }} 
+          audioLevel={isSpeaking ? 0.5 : 0} 
+        />
       </Float>
       <Pedestal />
       <ContactShadows position={[0, 0, 0]} opacity={0.45} scale={2.5} blur={2.5} far={1.2} />
     </>
   );
-}
-
-interface CompanionAvatar3DProps {
-  character: CharacterType;
-  isSpeaking: boolean;
-  mood: "idle" | "happy" | "exercise" | "sleep";
-  speechText?: string;
 }
 
 const CompanionAvatar3D = ({ character, isSpeaking, mood, speechText }: CompanionAvatar3DProps) => {

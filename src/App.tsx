@@ -5,11 +5,14 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { LanguageProvider } from "@/hooks/useLanguage";
+import { lazy, Suspense } from "react";
 import Index from "./pages/Index.tsx";
 import AboutPage from "./pages/AboutPage.tsx";
 import DepartmentsPage from "./pages/DepartmentsPage.tsx";
 import ContactPage from "./pages/ContactPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
+
+const CompanionOverlay = lazy(() => import("@/components/CompanionOverlay/CompanionOverlay"));
 
 const queryClient = new QueryClient();
 
@@ -29,6 +32,10 @@ const App = () => (
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          {/* Global 3D companion overlay — persists across all routes */}
+          <Suspense fallback={null}>
+            <CompanionOverlay />
+          </Suspense>
         </LanguageProvider>
       </ThemeProvider>
     </TooltipProvider>
@@ -36,3 +43,4 @@ const App = () => (
 );
 
 export default App;
+
